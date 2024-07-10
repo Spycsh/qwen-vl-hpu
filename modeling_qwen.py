@@ -652,7 +652,6 @@ class QWenModel(QWenPreTrainedModel):
         )
 
         hidden_states = inputs_embeds
-        rotary_pos_emb = None
         if token_idx:
             max_kv_seq_len = hidden_states.size()[1]
             kv_seq_len = token_idx
@@ -683,7 +682,7 @@ class QWenModel(QWenPreTrainedModel):
             else:
                 ntk_alpha = self.rotary_emb._ntk_alpha_cached   # 1
 
-                rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)   # 286,1 / 287,1
+            rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)   # 286,1 / 287,1
             # out: torch.Size([1, 286, 1, 128]) torch.Size([1, kv_seq_len, 1, self.config.kv_channels])
         for idx in range(len(rotary_pos_emb)):  #2
             rotary_pos_emb[idx] = rotary_pos_emb[idx].to(hidden_states.device)
