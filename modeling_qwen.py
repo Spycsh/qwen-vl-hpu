@@ -652,7 +652,7 @@ class QWenModel(QWenPreTrainedModel):
         )
 
         hidden_states = inputs_embeds
-
+        rotary_pos_emb = None
         if token_idx:
             max_kv_seq_len = hidden_states.size()[1]
             kv_seq_len = token_idx
@@ -666,7 +666,7 @@ class QWenModel(QWenPreTrainedModel):
                 self.rotary_pos_emb = [None, None]
                 self.rotary_pos_emb[0] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
                 self.rotary_pos_emb[1] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
-                rotary_pos_emb = self.rotary_pos_emb
+            rotary_pos_emb = self.rotary_pos_emb
         else:
             kv_seq_len = hidden_states.size()[1]    # 286 / 1
             if past_key_values[0] is not None:
