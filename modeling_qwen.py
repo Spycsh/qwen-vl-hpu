@@ -480,6 +480,8 @@ class QWenModel(QWenPreTrainedModel):
         )
         self.rotary_emb = RotaryEmbedding(dim, base=config.rotary_emb_base)
 
+        self.rotary_pos_emb = None
+
         self.use_flash_attn = config.use_flash_attn
         self.is_fp32 = not (config.bf16 or config.fp16)
         self.registered_causal_mask = None
@@ -651,23 +653,39 @@ class QWenModel(QWenPreTrainedModel):
 
         hidden_states = inputs_embeds
 
-        kv_seq_len = hidden_states.size()[1]
-        if past_key_values[0] is not None:
-            # past key values[0][0] shape: bs * seq_len * head_num * dim
-            kv_seq_len += past_key_values[0][0].shape[1]
-        if (
-            self.use_dynamic_ntk
-            and kv_seq_len == hidden_states.size()[1]
-            and not self.training
-        ):
-            context_value = math.log(kv_seq_len / self.seq_length, 2) + 1
-            ntk_alpha = 2 ** math.ceil(context_value) - 1
-            ntk_alpha = max(ntk_alpha, 1)
-        else:
+        if token_idx:
+            max_kv_seq_len = hidden_states.size()[1]
+            kv_seq_len = token_idx
+            # here directly use cached value
             ntk_alpha = self.rotary_emb._ntk_alpha_cached
+            rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
+            if self.rotary_pos_emb: # [1, 286, 1, 128]
+                self.rotary_pos_emb[0].index_copy_(1, torch.tensor(range(rotary_pos_emb[0].size(1))), rotary_pos_emb[0])
+                self.rotary_pos_emb[1].index_copy_(1, torch.tensor(range(rotary_pos_emb[1].size(1))), rotary_pos_emb[1])
+            else:
+                self.rotary_pos_emb = [None, None]
+                self.rotary_pos_emb[0] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
+                self.rotary_pos_emb[1] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
+                rotary_pos_emb = self.rotary_pos_emb
+        else:
+            kv_seq_len = hidden_states.size()[1]    # 286 / 1
+            if past_key_values[0] is not None:
+                # past key values[0][0] shape: bs * seq_len * head_num * dim
+                kv_seq_len += past_key_values[0][0].shape[1]    # 287
+            if (
+                self.use_dynamic_ntk
+                and kv_seq_len == hidden_states.size()[1]
+                and not self.training
+            ):
+                context_value = math.log(kv_seq_len / self.seq_length, 2) + 1
+                ntk_alpha = 2 ** math.ceil(context_value) - 1   # -0.5
+                ntk_alpha = max(ntk_alpha, 1)   # 1
+            else:
+                ntk_alpha = self.rotary_emb._ntk_alpha_cached   # 1
 
-        rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
-        for idx in range(len(rotary_pos_emb)):
+                rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)   # 286,1 / 287,1
+            # out: torch.Size([1, 286, 1, 128]) torch.Size([1, kv_seq_len, 1, self.config.kv_channels])
+        for idx in range(len(rotary_pos_emb)):  #2
             rotary_pos_emb[idx] = rotary_pos_emb[idx].to(hidden_states.device)
 
         hidden_states = self.drop(hidden_states).clone()
