@@ -566,6 +566,7 @@ class QWenModel(QWenPreTrainedModel):
         return_dict: Optional[bool] = None,
         token_idx: Optional[torch.Tensor] = None,
     ):
+        print(input_ids)
         if past_key_values is None and torch.any(input_ids == self.config.visual['image_start_id']):
             bos_pos = torch.where(input_ids == self.config.visual['image_start_id'])
             eos_pos = torch.where(input_ids == self.config.visual['image_start_id'] + 1)
