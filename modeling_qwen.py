@@ -276,7 +276,19 @@ class QWenAttention(nn.Module):
 
         if rotary_pos_emb is not None:
             cur_len = query.shape[1]
-            rotary_pos_emb = [i[:, -cur_len:, :, :] for i in rotary_pos_emb]
+            # print q,k,v.shape torch.Size([1, 286, 32, 128]) 
+            # torch.Size([1, 286?798?, 32, 128]) torch.Size([1, 286, 32, 128])
+            # torch.Size([1, 1, 32, 128]) torch.Size([1, 1, 32, 128]) torch.Size([1, 1, 32, 128])
+            # print(cur_len, rotary_pos_emb[0].shape[1]) # 1 286
+            if token_idx:
+                if cur_len == 1:
+                    # decoding stage
+                    rotary_pos_emb = [i[:, token_idx-1:token_idx, :, :] for i in rotary_pos_emb]
+                else:
+                    # prefilling stage
+                    rotary_pos_emb = [i[:, -cur_len:, :, :] for i in rotary_pos_emb]
+            else:
+                rotary_pos_emb = [i[:, -cur_len:, :, :] for i in rotary_pos_emb]
             rotary_pos_emb = (rotary_pos_emb,) * 2
             q_pos_emb, k_pos_emb = rotary_pos_emb
             # Slice the pos emb for current inference
