@@ -284,12 +284,11 @@ class QWenAttention(nn.Module):
             key = apply_rotary_pos_emb(key, k_pos_emb)
 
         if layer_past is not None:
-            # past_key, past_value = layer_past[0], layer_past[1]
+            past_key, past_value = layer_past[0], layer_past[1]
             # key = torch.cat((past_key, key), dim=1)     ## this should be wrong!! past_key.index_copy_(1, token_idx-1, key)
             # value = torch.cat((past_value, value), dim=1)## this should be wrong!! past_value.index_copy_(1, token_idx-1, key)
-            key, value = layer_past[0], layer_past[1]
-            key.index_copy_(1, token_idx-1, key)
-            value.index_copy_(1, token_idx-1, key)
+            key = past_key.index_copy_(1, token_idx-1, key)
+            value = past_value.index_copy_(1, token_idx-1, value)
 
         if use_cache:
             present = (key, value)
@@ -816,7 +815,7 @@ class QWenLMHeadModel(QWenPreTrainedModel):
             # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
             input_ids = input_ids[:, token_idx-1].unsqueeze(-1)
             if token_type_ids is not None:
-                token_type_ids = token_type_ids[:, -1].unsqueeze(-1)
+                token_type_ids = token_type_ids[:, token_idx-1].unsqueeze(-1)
 
         attention_mask = kwargs.get("attention_mask", None)
         position_ids = kwargs.get("position_ids", None)
