@@ -287,8 +287,12 @@ class QWenAttention(nn.Module):
             past_key, past_value = layer_past[0], layer_past[1]
             # key = torch.cat((past_key, key), dim=1)     ## this should be wrong!! past_key.index_copy_(1, token_idx-1, key)
             # value = torch.cat((past_value, value), dim=1)## this should be wrong!! past_value.index_copy_(1, token_idx-1, key)
-            key = past_key.index_copy_(1, token_idx-1, key)
-            value = past_value.index_copy_(1, token_idx-1, value)
+            if token_idx:
+                key = past_key.index_copy_(1, token_idx-1, key)
+                value = past_value.index_copy_(1, token_idx-1, value)
+            else:
+                key = torch.cat((past_key, key), dim=1)
+                value = torch.cat((past_value, value), dim=1)
 
         if use_cache:
             present = (key, value)
@@ -813,7 +817,10 @@ class QWenLMHeadModel(QWenPreTrainedModel):
         token_idx = kwargs.get("token_idx", None)
         if past_key_values:
             # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
-            input_ids = input_ids[:, token_idx-1].unsqueeze(-1)
+            if token_idx:
+                input_ids = input_ids[:, token_idx-1].unsqueeze(-1)
+            else:
+                input_ids = input_ids[:, -1].unsqueeze(-1)
             if token_type_ids is not None:
                 token_type_ids = token_type_ids[:, token_idx-1].unsqueeze(-1)
 
@@ -825,7 +832,10 @@ class QWenLMHeadModel(QWenPreTrainedModel):
             position_ids.masked_fill_(attention_mask == 0, 1)   # 2nd 0~286 1,1,1,..
             if past_key_values:
                 # position_ids = position_ids[:, -1].unsqueeze(-1) ## not the last one!!! position_ids = position_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
-                position_ids = position_ids[:, token_idx-1].unsqueeze(-1)
+                if token_idx:
+                    position_ids = position_ids[:, token_idx-1].unsqueeze(-1)
+                else:
+                    position_ids = position_ids[:, -1].unsqueeze(-1)
         else:
             position_ids = None
 
