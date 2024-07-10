@@ -167,7 +167,10 @@ class QWenAttention(nn.Module):
         # attn_weights = torch.where(
         #     causal_mask, attn_weights.to(attn_weights.dtype), mask_value
         # )
-        attn_weights = attn_weights + attention_mask
+
+        # RuntimeError: Incompatible input shapes, broadcast not possible. Tensor1 Size: 798 1 32 1 Tensor2 Size: 797 1 1 1
+        # err: torch.Size([1, 32, 1, 798]) + torch.Size([1, 1, 1, 797])
+        attn_weights = attn_weights + attention_mask # torch.Size([1, 32, 797, 797]) + torch.Size([1, 1, 797, 797])
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
@@ -260,6 +263,7 @@ class QWenAttention(nn.Module):
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        token_idx: Optional[torch.Tensor] = None,
     ):
 
         mixed_x_layer = self.c_attn(hidden_states)
@@ -280,9 +284,12 @@ class QWenAttention(nn.Module):
             key = apply_rotary_pos_emb(key, k_pos_emb)
 
         if layer_past is not None:
-            past_key, past_value = layer_past[0], layer_past[1]
-            key = torch.cat((past_key, key), dim=1)
-            value = torch.cat((past_value, value), dim=1)
+            # past_key, past_value = layer_past[0], layer_past[1]
+            # key = torch.cat((past_key, key), dim=1)     ## this should be wrong!! past_key.index_copy_(1, token_idx-1, key)
+            # value = torch.cat((past_value, value), dim=1)## this should be wrong!! past_value.index_copy_(1, token_idx-1, key)
+            key, value = layer_past[0], layer_past[1]
+            key.index_copy_(1, token_idx-1, key)
+            value.index_copy_(1, token_idx-1, key)
 
         if use_cache:
             present = (key, value)
@@ -365,6 +372,7 @@ class QWenBlock(nn.Module):
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
+        token_idx: Optional[torch.Tensor] = None,
     ):
         layernorm_output = self.ln_1(hidden_states)
 
@@ -377,6 +385,7 @@ class QWenBlock(nn.Module):
             head_mask=head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
+            token_idx=token_idx,
         )
         attn_output = attn_outputs[0]
 
@@ -550,6 +559,7 @@ class QWenModel(QWenPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        token_idx: Optional[torch.Tensor] = None,
     ):
         if past_key_values is None and torch.any(input_ids == self.config.visual['image_start_id']):
             bos_pos = torch.where(input_ids == self.config.visual['image_start_id'])
@@ -712,6 +722,7 @@ class QWenModel(QWenPreTrainedModel):
                     encoder_attention_mask=encoder_attention_mask,
                     use_cache=use_cache,
                     output_attentions=output_attentions,
+                    token_idx=token_idx,
                 )
 
             hidden_states = outputs[0]
@@ -798,9 +809,12 @@ class QWenLMHeadModel(QWenPreTrainedModel):
     def prepare_inputs_for_generation(
         self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs
     ):
+        # FIXME update to only support HPU
         token_type_ids = kwargs.get("token_type_ids", None)
+        token_idx = kwargs.get("token_idx", None)
         if past_key_values:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
+            # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
+            input_ids = input_ids[:, token_idx-1].unsqueeze(-1)
             if token_type_ids is not None:
                 token_type_ids = token_type_ids[:, -1].unsqueeze(-1)
 
@@ -809,9 +823,10 @@ class QWenLMHeadModel(QWenPreTrainedModel):
 
         if attention_mask is not None and position_ids is None:
             position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
+            position_ids.masked_fill_(attention_mask == 0, 1)   # 2nd 0~286 1,1,1,..
             if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
+                # position_ids = position_ids[:, -1].unsqueeze(-1) ## not the last one!!! position_ids = position_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
+                position_ids = position_ids[:, token_idx-1].unsqueeze(-1)
         else:
             position_ids = None
 
@@ -827,6 +842,7 @@ class QWenLMHeadModel(QWenPreTrainedModel):
                 "position_ids": position_ids,
                 "attention_mask": attention_mask,
                 "token_type_ids": token_type_ids,
+                "token_idx": token_idx,
             }
         )
         return model_inputs
@@ -847,6 +863,7 @@ class QWenLMHeadModel(QWenPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        token_idx: Optional[torch.Tensor] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
 
         return_dict = (
@@ -867,6 +884,7 @@ class QWenLMHeadModel(QWenPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            token_idx=token_idx,
         )
         hidden_states = transformer_outputs[0]
 
