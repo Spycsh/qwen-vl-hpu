@@ -580,7 +580,7 @@ class QWenModel(QWenPreTrainedModel):
         return_dict: Optional[bool] = None,
         token_idx: Optional[torch.Tensor] = None,
     ):
-        print(input_ids)
+        # print(input_ids)
         if past_key_values is None and torch.any(input_ids == self.config.visual['image_start_id']):
             bos_pos = torch.where(input_ids == self.config.visual['image_start_id'])
             eos_pos = torch.where(input_ids == self.config.visual['image_start_id'] + 1)
@@ -674,7 +674,6 @@ class QWenModel(QWenPreTrainedModel):
             ntk_alpha = self.rotary_emb._ntk_alpha_cached
             rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
             # if not self.rotary_pos_emb: # [1, 286, 1, 128]
-            print(f"max_kv_seq_len: {max_kv_seq_len}")
             if max_kv_seq_len != 1: # for every prefilling stage, re-allocate the static shape rotary pos embed
                 self.rotary_pos_emb = [None, None]
                 self.rotary_pos_emb[0] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
