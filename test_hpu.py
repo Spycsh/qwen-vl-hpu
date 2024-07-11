@@ -27,8 +27,6 @@ model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen-VL-Chat", device_map="hp
 # 1st dialogue turn
 query = tokenizer.from_list_format([
     {'image': 'https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg'},
-    #{'image': './tire.png'},
-    #{'text': 'What is the serial number in this image?'},
     {'text': '这是什么？'},
 ])
 #response, history = model.chat(tokenizer, 'What is the serial number in this image?', history=history)
@@ -36,14 +34,11 @@ query = tokenizer.from_list_format([
 #print(time.time() - s)
 
 # 测试无history warmup性能
-for i in range(2):
+for i in range(1):
     s=time.time()
     response, history = model.chat(tokenizer, query=query, history=None)
     print(response)
     print(time.time() - s)
-
-# history
-# [('Picture 1: <img>https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg</img>\n这是什么？', '图中是一名女子在沙滩上和狗玩耍，旁边的狗是一只拉布拉多犬，它们处于沙滩上。')]
 
 # 测试有history warmup性能
 for i in range(2):
@@ -58,3 +53,25 @@ if image:
  image.save('1.jpg')
 else:
  print("no box")
+
+query = tokenizer.from_list_format([
+    {'image': 'https://raw.githubusercontent.com/opea-project/GenAIExamples/main/VisualQnA/ui/gradio/resources/waterview.jpg'},
+    {'text': '图里有些什么？'},
+])
+
+for i in range(1):
+    s=time.time()
+    response, history = model.chat(tokenizer, query=query, history=None)
+    print(response)
+    print(time.time() - s)
+
+query = tokenizer.from_list_format([
+    {'image': 'https://raw.githubusercontent.com/opea-project/GenAIExamples/main/VisualQnA/ui/gradio/resources/extreme_ironing.jpg'},
+    {'text': '这是什么？'},
+])
+
+for i in range(1):
+    s=time.time()
+    response, history = model.chat(tokenizer, query=query, history=None)
+    print(response)
+    print(time.time() - s)
