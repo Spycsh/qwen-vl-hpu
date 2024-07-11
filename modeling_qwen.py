@@ -669,10 +669,10 @@ class QWenModel(QWenPreTrainedModel):
         hidden_states = inputs_embeds
         if token_idx:
             max_kv_seq_len = hidden_states.size()[1]
-            kv_seq_len = token_idx
+            # kv_seq_len = token_idx
             # here directly use cached value 1.0
             ntk_alpha = self.rotary_emb._ntk_alpha_cached
-            rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
+            rotary_pos_emb = self.rotary_emb(max_kv_seq_len, ntk_alpha=ntk_alpha)
             # if not self.rotary_pos_emb: # [[1, 286, 1, 128], [1, 286, 1, 128]
             if max_kv_seq_len != 1: # for every prefilling stage, re-allocate the static shape rotary pos embed
                 if not (self.rotary_pos_emb and max_kv_seq_len<self.rotary_pos_emb[0].shape[1]):
@@ -849,6 +849,7 @@ class QWenLMHeadModel(QWenPreTrainedModel):
         token_idx = kwargs.get("token_idx", None)
         if input_ids.device.type == "hpu":
             ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
+            ## This is to let prefilling stage of different queries has the static shape
             input_ids = torch.nn.functional.pad(input_ids, (0, MAX_STATIC_HPU_SEQ_LEN-input_ids.shape[1]), value=self.generation_config.pad_token_id)
         if past_key_values:
             # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
@@ -1168,7 +1169,7 @@ class RotaryEmbedding(torch.nn.Module):
             self._seq_len_cached = max(2 * seqlen, 16)
             self._ntk_alpha_cached = ntk_alpha
             seq = torch.arange(self._seq_len_cached, device=self.inv_freq.device)
-            freqs = torch.outer(seq.type_as(self.inv_freq), self.inv_freq)
+            freqs = torch.outer(seq.type_as(self.inv_freq), self.inv_freq)  # 576, 64
             
             emb = torch.cat((freqs, freqs), dim=-1)
             from einops import rearrange
@@ -1193,7 +1194,7 @@ def _rotate_half(x):
 
 
 def apply_rotary_pos_emb(t, freqs):
-    cos, sin = freqs
+    cos, sin = freqs   # torch.Size([1, 1024, 1, 128]), torch.Size([1, 1024, 1, 128])
     if apply_rotary_emb_func is not None and t.is_cuda:
         t_ = t.float()
         cos = cos.squeeze(0).squeeze(1)[:, : cos.shape[-1] // 2]
@@ -1201,7 +1202,7 @@ def apply_rotary_pos_emb(t, freqs):
         output = apply_rotary_emb_func(t_, cos, sin).type_as(t)
         return output
     else:
-        rot_dim = freqs[0].shape[-1]
+        rot_dim = freqs[0].shape[-1]    # 128
         cos, sin = freqs
         t_, t_pass_ = t[..., :rot_dim], t[..., rot_dim:]
         t_ = t_.float()
