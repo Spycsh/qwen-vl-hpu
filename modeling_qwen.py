@@ -36,6 +36,8 @@ SUPPORT_CUDA = torch.cuda.is_available()
 SUPPORT_BF16 = SUPPORT_CUDA and torch.cuda.is_bf16_supported()
 SUPPORT_FP16 = SUPPORT_CUDA and torch.cuda.get_device_capability(0)[0] >= 7
 
+MAX_STATIC_HPU_SEQ_LEN = 1024
+
 from .configuration_qwen import QWenConfig
 from .qwen_generation_utils import (
     HistoryType,
@@ -843,9 +845,11 @@ class QWenLMHeadModel(QWenPreTrainedModel):
     def prepare_inputs_for_generation(
         self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs
     ):
-        # FIXME update to only support HPU
         token_type_ids = kwargs.get("token_type_ids", None)
         token_idx = kwargs.get("token_idx", None)
+        if input_ids.device.type == "hpu":
+            ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
+            input_ids = torch.nn.functional.pad(input_ids, (0, MAX_STATIC_HPU_SEQ_LEN-input_ids.shape[1]), value=self.generation_config.pad_token_id)
         if past_key_values:
             # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
             if token_idx:
@@ -856,6 +860,8 @@ class QWenLMHeadModel(QWenPreTrainedModel):
                 token_type_ids = token_type_ids[:, token_idx-1].unsqueeze(-1)
 
         attention_mask = kwargs.get("attention_mask", None)
+        ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
+        attention_mask = torch.nn.functional.pad(attention_mask, (0, MAX_STATIC_HPU_SEQ_LEN-attention_mask.shape[1]), value=self.generation_config.pad_token_id)
         position_ids = kwargs.get("position_ids", None)
 
         if attention_mask is not None and position_ids is None:
