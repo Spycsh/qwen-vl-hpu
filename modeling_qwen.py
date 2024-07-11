@@ -860,7 +860,8 @@ class QWenLMHeadModel(QWenPreTrainedModel):
 
         attention_mask = kwargs.get("attention_mask", None)
         ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
-        attention_mask = torch.nn.functional.pad(attention_mask, (0, MAX_STATIC_HPU_SEQ_LEN-attention_mask.shape[1]), value=self.generation_config.pad_token_id)
+        if input_ids.device.type == "hpu":
+            attention_mask = torch.nn.functional.pad(attention_mask, (0, MAX_STATIC_HPU_SEQ_LEN-attention_mask.shape[1]), value=self.generation_config.pad_token_id)
         position_ids = kwargs.get("position_ids", None)
 
         if attention_mask is not None and position_ids is None:

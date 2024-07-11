@@ -42,7 +42,7 @@ for i in range(1):
 # 测试有history warmup性能
 for i in range(1):
     s=time.time()
-    response, history = model.chat(tokenizer, '请画出击掌位置', history=history)
+    response, history = model.chat(tokenizer, '输出"击掌"的检测框', history=history)
     print(response)
     print(history)
     print(time.time() - s)
