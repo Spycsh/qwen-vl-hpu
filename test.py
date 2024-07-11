@@ -22,6 +22,8 @@ model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen-VL-Chat", device_map="hp
 # Specify hyperparameters for generation (No need to do this if you are using transformers>=4.32.0)
 # model.generation_config = GenerationConfig.from_pretrained("Qwen/Qwen-VL-Chat", trust_remote_code=True)
 
+
+
 # 1st dialogue turn
 query = tokenizer.from_list_format([
     {'image': 'https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg'},
@@ -39,6 +41,9 @@ for i in range(2):
     response, history = model.chat(tokenizer, query=query, history=None)
     print(response)
     print(time.time() - s)
+
+# history
+# [('Picture 1: <img>https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg</img>\n这是什么？', '图中是一名女子在沙滩上和狗玩耍，旁边的狗是一只拉布拉多犬，它们处于沙滩上。')]
 
 # 测试有history warmup性能
 for i in range(2):

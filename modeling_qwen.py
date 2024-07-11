@@ -668,10 +668,12 @@ class QWenModel(QWenPreTrainedModel):
         if token_idx:
             max_kv_seq_len = hidden_states.size()[1]
             kv_seq_len = token_idx
-            # here directly use cached value
+            # here directly use cached value 1.0
             ntk_alpha = self.rotary_emb._ntk_alpha_cached
             rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
-            if not self.rotary_pos_emb: # [1, 286, 1, 128]
+            # if not self.rotary_pos_emb: # [1, 286, 1, 128]
+            print(f"max_kv_seq_len: {max_kv_seq_len}")
+            if rotary_pos_emb.shape[1] != 1:
                 self.rotary_pos_emb = [None, None]
                 self.rotary_pos_emb[0] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
                 self.rotary_pos_emb[1] = torch.zeros([1, max_kv_seq_len, 1, self.config.kv_channels])
