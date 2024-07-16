@@ -18,3 +18,9 @@ cp ./modeling_qwen.py /root/.cache/huggingface/modules/transformers_modules/Qwen
 
 python test_hpu.py
 ```
+
+Rough perf comparison (1 Gaudi card vs. 8380 xeon cpu)
+
+hpu: 80ms/token
+
+cpu: 650ms/token
