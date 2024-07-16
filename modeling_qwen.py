@@ -1,7 +1,12 @@
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 # Copyright (c) Alibaba Cloud.
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+
+"""add hpu support."""
 
 import importlib
 import math
@@ -170,9 +175,7 @@ class QWenAttention(nn.Module):
         #     causal_mask, attn_weights.to(attn_weights.dtype), mask_value
         # )
 
-        # RuntimeError: Incompatible input shapes, broadcast not possible. Tensor1 Size: 798 1 32 1 Tensor2 Size: 797 1 1 1
-        # err: torch.Size([1, 32, 1, 798]) + torch.Size([1, 1, 1, 797])
-        attn_weights = attn_weights + attention_mask # torch.Size([1, 32, 797, 797]) + torch.Size([1, 1, 797, 797])
+        attn_weights = attn_weights + attention_mask
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
@@ -278,10 +281,6 @@ class QWenAttention(nn.Module):
 
         if rotary_pos_emb is not None:
             cur_len = query.shape[1]
-            # print q,k,v.shape torch.Size([1, 286, 32, 128]) 
-            # torch.Size([1, 286?798?, 32, 128]) torch.Size([1, 286, 32, 128])
-            # torch.Size([1, 1, 32, 128]) torch.Size([1, 1, 32, 128]) torch.Size([1, 1, 32, 128])
-            # print(cur_len, rotary_pos_emb[0].shape[1]) # 1 286
             if token_idx:
                 if cur_len == 1:
                     # decoding stage
@@ -299,8 +298,6 @@ class QWenAttention(nn.Module):
 
         if layer_past is not None:
             past_key, past_value = layer_past[0], layer_past[1]
-            # key = torch.cat((past_key, key), dim=1)     ## this should be wrong!! past_key.index_copy_(1, token_idx-1, key)
-            # value = torch.cat((past_value, value), dim=1)## this should be wrong!! past_value.index_copy_(1, token_idx-1, key)
             if token_idx:
                 key = past_key.index_copy_(1, token_idx-1, key)
                 value = past_value.index_copy_(1, token_idx-1, value)
@@ -580,7 +577,6 @@ class QWenModel(QWenPreTrainedModel):
         return_dict: Optional[bool] = None,
         token_idx: Optional[torch.Tensor] = None,
     ):
-        # print(input_ids)
         if past_key_values is None and torch.any(input_ids == self.config.visual['image_start_id']):
             bos_pos = torch.where(input_ids == self.config.visual['image_start_id'])
             eos_pos = torch.where(input_ids == self.config.visual['image_start_id'] + 1)
@@ -673,7 +669,6 @@ class QWenModel(QWenPreTrainedModel):
             # here directly use cached value 1.0
             ntk_alpha = self.rotary_emb._ntk_alpha_cached
             rotary_pos_emb = self.rotary_emb(max_kv_seq_len, ntk_alpha=ntk_alpha)
-            # if not self.rotary_pos_emb: # [[1, 286, 1, 128], [1, 286, 1, 128]
             if max_kv_seq_len != 1: # for every prefilling stage, re-allocate the static shape rotary pos embed
                 if not (self.rotary_pos_emb and max_kv_seq_len<self.rotary_pos_emb[0].shape[1]):
                     self.rotary_pos_emb = [None, None]
@@ -683,24 +678,22 @@ class QWenModel(QWenPreTrainedModel):
             self.rotary_pos_emb[1].index_copy_(1, torch.tensor(range(rotary_pos_emb[1].size(1))), rotary_pos_emb[1])
             rotary_pos_emb = self.rotary_pos_emb
         else:
-            kv_seq_len = hidden_states.size()[1]    # 286 / 1
+            kv_seq_len = hidden_states.size()[1]
             if past_key_values[0] is not None:
-                # past key values[0][0] shape: bs * seq_len * head_num * dim
-                kv_seq_len += past_key_values[0][0].shape[1]    # 287
+                kv_seq_len += past_key_values[0][0].shape[1]
             if (
                 self.use_dynamic_ntk
                 and kv_seq_len == hidden_states.size()[1]
                 and not self.training
             ):
                 context_value = math.log(kv_seq_len / self.seq_length, 2) + 1
-                ntk_alpha = 2 ** math.ceil(context_value) - 1   # -0.5
-                ntk_alpha = max(ntk_alpha, 1)   # 1
+                ntk_alpha = 2 ** math.ceil(context_value) - 1
+                ntk_alpha = max(ntk_alpha, 1)
             else:
-                ntk_alpha = self.rotary_emb._ntk_alpha_cached   # 1
+                ntk_alpha = self.rotary_emb._ntk_alpha_cached
 
-            rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)   # 286,1 / 287,1
-            # out: torch.Size([1, 286, 1, 128]) torch.Size([1, kv_seq_len, 1, self.config.kv_channels])
-        for idx in range(len(rotary_pos_emb)):  #2
+            rotary_pos_emb = self.rotary_emb(kv_seq_len, ntk_alpha=ntk_alpha)
+        for idx in range(len(rotary_pos_emb)):
             rotary_pos_emb[idx] = rotary_pos_emb[idx].to(hidden_states.device)
 
         hidden_states = self.drop(hidden_states).clone()
@@ -790,6 +783,7 @@ class QWenModel(QWenPreTrainedModel):
 class QWenLMHeadModel(QWenPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"h\.\d+\.attn\.rotary_emb\.inv_freq"]
     _keys_to_ignore_on_load_unexpected = [r"h\.\d+\.attn\.masked_bias"]
+    dd = "s"
 
     def __init__(self, config):
         super().__init__(config)
@@ -848,11 +842,10 @@ class QWenLMHeadModel(QWenPreTrainedModel):
         token_type_ids = kwargs.get("token_type_ids", None)
         token_idx = kwargs.get("token_idx", None)
         if input_ids.device.type == "hpu":
-            ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
+            ## Force to pad to MAX_STATIC_HPU_SEQ_LEN
             ## This is to let prefilling stage of different queries has the static shape
             input_ids = torch.nn.functional.pad(input_ids, (0, MAX_STATIC_HPU_SEQ_LEN-input_ids.shape[1]), value=self.generation_config.pad_token_id)
         if past_key_values:
-            # input_ids = input_ids[:, -1].unsqueeze(-1)  ## not the last one!!! input_ids = input_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
             if token_idx:
                 input_ids = input_ids[:, token_idx-1].unsqueeze(-1)
             else:
@@ -861,16 +854,15 @@ class QWenLMHeadModel(QWenPreTrainedModel):
                 token_type_ids = token_type_ids[:, token_idx-1].unsqueeze(-1)
 
         attention_mask = kwargs.get("attention_mask", None)
-        ## FIXME Force to pad to MAX_STATIC_HPU_SEQ_LEN
+        ## Force to pad to MAX_STATIC_HPU_SEQ_LEN
         if input_ids.device.type == "hpu":
             attention_mask = torch.nn.functional.pad(attention_mask, (0, MAX_STATIC_HPU_SEQ_LEN-attention_mask.shape[1]), value=self.generation_config.pad_token_id)
         position_ids = kwargs.get("position_ids", None)
 
         if attention_mask is not None and position_ids is None:
             position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)   # 2nd 0~286 1,1,1,..
+            position_ids.masked_fill_(attention_mask == 0, 1)
             if past_key_values:
-                # position_ids = position_ids[:, -1].unsqueeze(-1) ## not the last one!!! position_ids = position_ids[:, kwargs['token_idx']-1].unsqueeze(-1)
                 if token_idx:
                     position_ids = position_ids[:, token_idx-1].unsqueeze(-1)
                 else:
@@ -1169,7 +1161,7 @@ class RotaryEmbedding(torch.nn.Module):
             self._seq_len_cached = max(2 * seqlen, 16)
             self._ntk_alpha_cached = ntk_alpha
             seq = torch.arange(self._seq_len_cached, device=self.inv_freq.device)
-            freqs = torch.outer(seq.type_as(self.inv_freq), self.inv_freq)  # 576, 64
+            freqs = torch.outer(seq.type_as(self.inv_freq), self.inv_freq)
             
             emb = torch.cat((freqs, freqs), dim=-1)
             from einops import rearrange
@@ -1194,7 +1186,7 @@ def _rotate_half(x):
 
 
 def apply_rotary_pos_emb(t, freqs):
-    cos, sin = freqs   # torch.Size([1, 1024, 1, 128]), torch.Size([1, 1024, 1, 128])
+    cos, sin = freqs
     if apply_rotary_emb_func is not None and t.is_cuda:
         t_ = t.float()
         cos = cos.squeeze(0).squeeze(1)[:, : cos.shape[-1] // 2]
@@ -1202,7 +1194,7 @@ def apply_rotary_pos_emb(t, freqs):
         output = apply_rotary_emb_func(t_, cos, sin).type_as(t)
         return output
     else:
-        rot_dim = freqs[0].shape[-1]    # 128
+        rot_dim = freqs[0].shape[-1]
         cos, sin = freqs
         t_, t_pass_ = t[..., :rot_dim], t[..., rot_dim:]
         t_ = t_.float()
