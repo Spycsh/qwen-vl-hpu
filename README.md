@@ -6,7 +6,7 @@ docker run -itd -p 8091:80  --runtime=habana -e http_proxy=$http_proxy -e https_
 pip install tiktoken matplotlib
 pip install einops transformers_stream_generator
 pip install accelerate
-
+pip install --upgrade-strategy eager optimum[habana]
 
 git clone https://github.com/Spycsh/optimum-habana.git
 cd optimum-habana
