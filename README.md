@@ -1,5 +1,6 @@
 BKC on HPU
 
+# Qwen-VL 1
 ```
 docker run -itd -p 8091:80  --runtime=habana -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host vault.habana.ai/gaudi-docker/1.16.1/ubuntu22.04/habanalabs/pytorch-installer-2.2.2:latest
 
@@ -24,3 +25,14 @@ Rough perf comparison (1 Gaudi card vs. 8380 xeon cpu)
 hpu: 80ms/token
 
 cpu: 650ms/token
+
+
+# Qwen-VL 2
+
+Use [my branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYTHONPATH correctly
+
+```
+python qwen2_vl.py
+```
+
+Make sure you fix the `max_new_tokens`. After the first warmup, with `max_new_tokens` 64, the last four latencies should be <5~10s. clsoe to A100.
