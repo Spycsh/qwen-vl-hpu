@@ -35,6 +35,6 @@ Use [my branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYT
 python qwen2_vl.py
 ```
 
-Make sure you fix the `max_new_tokens`. After the first warmup, with `max_new_tokens` 64/128, the last four latencies should be <5~10s. close to A100. 4~7 fastercompared to cpu.
+Make sure you fix the `max_new_tokens`. After the first warmup, with `max_new_tokens` 64/128, the last four latencies should be about 5 to 10s. close to A100. 4 to 7 times faster than cpu.
 
 > Take care if there is a perf gap, please make sure `max_length` and `max_new_tokens` are set reasonably.
