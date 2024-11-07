@@ -1,5 +1,3 @@
-"""Note for enabling Qwen2-VL on HPU"""
-
 #from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
 from qwen_vl_utils import process_vision_info
 import torch
@@ -8,22 +6,30 @@ import time
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--device", type=str, default="hpu")
+parser.add_argument("--baseline", action="store_true")
 args = parser.parse_args()
 device = args.device
 
 links = ["https://raw.githubusercontent.com/opea-project/GenAIExamples/refs/heads/main/VisualQnA/ui/svelte/static/favicon.png","https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg","https://raw.githubusercontent.com/Ikaros-521/digital_human_video_player/refs/heads/main/static/imgs/1.png","https://raw.githubusercontent.com/Ikaros-521/digital_human_video_player/refs/heads/main/static/imgs/2.png","https://raw.githubusercontent.com/Spycsh/assets/refs/heads/main/OPEA%20Telemetry.jpg"]
+links.reverse() # The last link output exceed max_tokens default 128, let it warmup first
+#|----input---|---pad by processor ----------------------|--decoding max_new_tokens---------------|
+#|---------------------------4096------------------------|----------------------128---------------|
+
+
 if device == "hpu":
-    from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
-    adapt_transformers_to_gaudi()
-    #import habana_frameworks.torch.core as htcore
-    #import habana_frameworks.torch.gpu_migration
+    if not args.baseline:
+        from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+        adapt_transformers_to_gaudi()
+    else: # naive implementation
+        import habana_frameworks.torch.core as htcore
+        import habana_frameworks.torch.gpu_migration
 # default: Load the model on the available device(s)
 from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
 model = Qwen2VLForConditionalGeneration.from_pretrained(
     "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto",
 ).to(device)
-
-
+print(device)
+print(f"Use static generation {not args.baseline}")
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
 # model = Qwen2VLForConditionalGeneration.from_pretrained(
 #     "Qwen/Qwen2-VL-7B-Instruct",
@@ -73,7 +79,7 @@ for link in links:
     # Inference: Generation of the output
     for i in range(1):
         start = time.time()
-        generated_ids = model.generate(**inputs, max_new_tokens=64,)
+        generated_ids = model.generate(**inputs, max_new_tokens=128,)
         print(time.time() - start)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
