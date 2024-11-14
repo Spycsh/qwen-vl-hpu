@@ -29,11 +29,12 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
     "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto",
 ).to(device)
 
-from habana_frameworks.torch.hpu import wrap_in_hpu_graph
-model = wrap_in_hpu_graph(model)
-
 print(device)
-print(f"Use static generation {not args.baseline}")
+if device == "hpu":
+    from habana_frameworks.torch.hpu import wrap_in_hpu_graph
+    model = wrap_in_hpu_graph(model)
+    print(f"Use static generation {not args.baseline}")
+
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
 # model = Qwen2VLForConditionalGeneration.from_pretrained(
 #     "Qwen/Qwen2-VL-7B-Instruct",
