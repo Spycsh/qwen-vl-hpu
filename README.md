@@ -29,7 +29,7 @@ cpu: 650ms/token
 
 # Qwen-VL 2
 
-Use [my branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYTHONPATH correctly
+Use [my branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYTHONPATH correctly, make sure `transformers==4.45.2`
 
 ```
 python qwen2_vl.py
