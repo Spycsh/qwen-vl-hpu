@@ -31,7 +31,7 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
 
 print(device)
 # Do not use wrap_in_hpu_graph since the repeated inference will cause an error on HPU
-if device == "hpu":
+if device == "hpu" and not args.baseline:
     from habana_frameworks.torch.hpu import wrap_in_hpu_graph
     model.model = wrap_in_hpu_graph(model.model)
     print(f"Use static generation {not args.baseline}")
