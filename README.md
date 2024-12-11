@@ -37,3 +37,18 @@ python qwen2_vl.py
 # unoptimized hpu baseline
 python qwen2_vl --baseline
 ```
+
+Official pipeline perf
+
+```
+root@xxxxxxxxx:/optimum-habana/examples/image-to-text# python3 run_pipeline.py --model_name_or_path Qwen/Qwen2-VL-2B-Instruct --use_hpu_graphs --bf16
+...
+Throughput (including tokenization) = 54.236525814560444 tokens/second
+
+root@xxxxxxxxx:/optimum-habana/examples/image-to-text# python3 run_pipeline.py --model_name_or_path Qwen/Qwen2-VL-7B-Instruct --use_hpu_graphs --bf16
+...
+Throughput (including tokenization) = 37.65833581642965 tokens/second
+
+```
+
+As above, Qwen-VL-7b can obtain 37.66 tokens/sec.
