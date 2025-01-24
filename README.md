@@ -52,3 +52,11 @@ Throughput (including tokenization) = 37.65833581642965 tokens/second
 ```
 
 As above, Qwen-VL-7b can obtain 37.66 tokens/sec.
+
+# Qwen-VL 2 with HPU graph issue fixed in Vision Block and FusedSDPA
+
+Use this [branch](https://github.com/nngokhale/optimum-habana/tree/Qwen2VLPR). He fixed the HPU graph issue and applied FusedSDPA (HPU counterpart to flash-attention) to make it optimal on HPU.
+
+```
+python3 qwen2_vl_flash_attn.py
+```

@@ -30,10 +30,9 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
 ).to(device)
 
 print(device)
-# Do not use wrap_in_hpu_graph since the repeated inference will cause an error on HPU
 if device == "hpu" and not args.baseline:
     from habana_frameworks.torch.hpu import wrap_in_hpu_graph
-    model.model = wrap_in_hpu_graph(model.model)
+    model = wrap_in_hpu_graph(model)
     print(f"Use static generation {not args.baseline}")
 
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
@@ -85,7 +84,7 @@ for link in links:
     # Inference: Generation of the output
     for i in range(1):
         start = time.time()
-        generated_ids = model.generate(**inputs, max_new_tokens=128,)
+        generated_ids = model.generate(**inputs, max_new_tokens=128,use_cache=True,cache_implementation="static",static_shapes=True,use_flash_attention=True)
         print(time.time() - start)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
