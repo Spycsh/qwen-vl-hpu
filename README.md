@@ -1,6 +1,6 @@
 BKC on HPU
 
-# Qwen-VL 1
+# Qwen-VL
 ```
 docker run -itd -p 8091:80  --runtime=habana -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none --cap-add=sys_nice --ipc=host vault.habana.ai/gaudi-docker/1.16.1/ubuntu22.04/habanalabs/pytorch-installer-2.2.2:latest
 
@@ -27,7 +27,7 @@ hpu: 80ms/token
 cpu: 650ms/token
 
 
-# Qwen-VL 2
+# Qwen2-VL
 
 Use [my branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYTHONPATH correctly, make sure `transformers==4.45.2`
 
@@ -53,10 +53,23 @@ Throughput (including tokenization) = 37.65833581642965 tokens/second
 
 As above, Qwen-VL-7b can obtain 37.66 tokens/sec.
 
-# Qwen-VL 2 with HPU graph issue fixed in Vision Block and FusedSDPA
+# Qwen2-VL with HPU graph issue fixed in Vision Block and FusedSDPA
 
-Use this [branch](https://github.com/nngokhale/optimum-habana/tree/Qwen2VLPR). He fixed the HPU graph issue and applied FusedSDPA (HPU counterpart to flash-attention) to make it optimal on HPU.
+Use this [branch](https://github.com/nngokhale/optimum-habana/tree/Qwen2VLPR). He use static cache and applied FusedSDPA (HPU counterpart to flash-attention) to make it optimal on HPU for 2b, 7b model. However 72b is not supported.
 
 ```
 python3 qwen2_vl_flash_attn.py
 ```
+
+# Qwen2-VL 72B
+
+Use [my OH branch](https://github.com/Spycsh/optimum-habana/tree/qwen2_vl), set PYTHONPATH correctly, make sure `transformers==4.45.2`
+
+Use [my DeepSpeed branch](https://github.com/Spycsh/DeepSpeed/tree/qwen2_vl), set PYTHONPATH correctly
+
+```
+PT_HPU_ENABLE_LAZY_COLLECTIVES=true python ../gaudi_spawn.py --use_deepspeed --world_size 4 run_pipeline.py --model_name_or_path Qwen/Qwen2-VL-72B-Instruct  --max_new_tokens 128 --bf16 --batch_size 1 --use_hpu_graph
+
+```
+
+Achieve `~18.897807351919962 tokens/second`
