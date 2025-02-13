@@ -1,4 +1,4 @@
-BKC on HPU
+BKC on HPU (only for personal notes, some old bencmark may be inaccurate.)
 
 # Qwen-VL
 ```
